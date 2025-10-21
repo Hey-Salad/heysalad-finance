@@ -5,7 +5,7 @@ Production-ready Express + TypeScript backend providing Wise, Stripe, AI categor
 ## Requirements
 
 - Node.js 20+
-- MongoDB Atlas connection string
+- Supabase project URL and service role key (Postgres)
 - Wise API token and Stripe secret (sandbox or production)
 
 ## Setup
@@ -16,7 +16,8 @@ Production-ready Express + TypeScript backend providing Wise, Stripe, AI categor
    ```
 2. Create `.env` from `.env.example` and set:
    ```
-   MONGODB_URI=...
+   SUPABASE_URL=https://<your-supabase-project>.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=service-role-key
    JWT_SECRET=...
    JWT_REFRESH_SECRET=...
    ENCRYPTION_KEY=32-char-hex
@@ -50,7 +51,7 @@ Unit tests currently cover encryption and burn-rate utilities. Add service and i
 src/
   controllers/
   services/
-  models/
+  repositories/
   middleware/
   routes/
   jobs/
@@ -58,6 +59,20 @@ src/
 ```
 
 Wise sync runs every 30 minutes via `node-cron` (`scheduleWiseSync`). Stripe webhooks expect a raw body at `/api/webhooks/stripe`.
+
+### Supabase schema
+
+See `src/repositories` for the expected table structures. At minimum you will need tables for:
+
+- `users`
+- `transactions`
+- `balances`
+- `journal_entries`
+- `refresh_tokens`
+- `category_overrides`
+- `burn_rate_scenarios`
+
+Each repository file documents the column names used when reading/writing through Supabase.
 
 ### Importing historical transactions
 

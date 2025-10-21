@@ -1,5 +1,15 @@
 node_modules
+.npm-cache
+.pnpm-store
+
+# Environment secrets
 .env
+.env.*.local
+.env.local
+.env.production
+.env.development
+!.env.example
+
 .DS_Store
 dist
 coverage
