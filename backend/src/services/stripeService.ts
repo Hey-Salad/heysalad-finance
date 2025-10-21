@@ -70,7 +70,7 @@ export const createCheckoutSession = async (
         price_data: {
           currency: payload.currency,
           product_data: {
-            name: payload.metadata?.description ?? 'HeySalad Payment'
+            name: payload.metadata?.description ?? 'HeySalad® Payment'
           },
           unit_amount: Math.round(payload.amount * 100)
         },
@@ -140,7 +140,7 @@ export const handleStripeWebhook = async (
 
       await recordStripeTransaction(userId, {
         stripeId: session.id,
-        description: session.metadata?.description ?? 'Stripe Checkout Payment',
+        description: session.metadata?.description ?? 'HeySalad® Stripe Checkout',
         amount: (session.amount_total ?? 0) / 100,
         currency: session.currency,
         occurredAt: dayjs(session.created * 1000).toDate(),
@@ -156,7 +156,8 @@ export const handleStripeWebhook = async (
       }
       await recordStripeTransaction(userId, {
         stripeId: intent.id,
-        description: intent.metadata?.description ?? intent.description ?? 'Stripe Payment Intent',
+        description:
+          intent.metadata?.description ?? intent.description ?? 'HeySalad® Stripe Payment Intent',
         amount: intent.amount_received / 100,
         currency: intent.currency,
         occurredAt: dayjs(intent.created * 1000).toDate(),

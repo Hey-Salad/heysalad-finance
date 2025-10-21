@@ -1,6 +1,6 @@
-# HeySalad Finance Frontend
+# HeySalad® Finance Frontend
 
-React + TypeScript dashboard for HeySalad Finance. It consumes the Supabase-backed REST API exposed by the backend service.
+React + TypeScript dashboard for HeySalad® Finance. It consumes the Supabase-backed REST API exposed by the backend service.
 
 ## Scripts
 
@@ -36,5 +36,5 @@ The dashboard expects the backend to expose Supabase data through its REST endpo
 
 - Live balances, burn-rate analytics, and recent transactions from the backend API.
 - Upload CSV, Excel, or PDF statements from the Transactions page to auto-generate data.
-- HeySalad brand styling with Grandstander (display) and Figtree (body) fonts.
+- HeySalad® brand styling with Grandstander (display) and Figtree (body) fonts.
 - Responsive sidebar/top-bar layout with accessible navigation states.

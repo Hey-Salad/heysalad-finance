@@ -39,7 +39,7 @@ export const startServer = async () => {
   await connectDatabase();
   scheduleWiseSync();
   app.listen(config.port, () => {
-    logger.info(`🚀 HeySalad Finance API listening on port ${config.port}`);
+    logger.info(`🚀 HeySalad® Finance API listening on port ${config.port}`);
   });
 };
 

@@ -15,8 +15,8 @@ const config: Config = {
         offwhite: '#ffffff'
       },
       fontFamily: {
-        sans: ['Inter', 'Figtree', 'ui-sans-serif', 'system-ui'],
-        heading: ['Inter', 'ui-sans-serif', 'system-ui']
+        sans: ['Figtree', 'ui-sans-serif', 'system-ui'],
+        heading: ['Grandstander', 'cursive']
       }
     }
   },

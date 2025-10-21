@@ -1,12 +1,14 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "HeySalad Finance backend API",
+  "description": "HeySalad® Finance backend API",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "nodemon --watch src --exec ts-node src/index.ts",
+    "dev:sandbox": "DOTENV_CONFIG_PATH=.env.sandbox nodemon --watch src --exec ts-node src/index.ts",
+    "dev:prod": "DOTENV_CONFIG_PATH=.env.production nodemon --watch src --exec ts-node src/index.ts",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "format": "prettier --check \"src/**/*.{ts,tsx,json}\"",
     "format:write": "prettier --write \"src/**/*.{ts,tsx,json}\"",

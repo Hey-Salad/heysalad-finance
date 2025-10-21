@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "version": "1.0.0",
-  "description": "HeySalad Finance dashboard frontend",
+  "description": "HeySalad® Finance dashboard frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",

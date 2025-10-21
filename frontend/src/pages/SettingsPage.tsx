@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import client from '../api/client';
 import Loader from '../components/Loader';
 
 const SettingsPage = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data, isLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
@@ -19,6 +21,28 @@ const SettingsPage = () => {
     defaultCurrency: 'EUR',
     refreshInterval: 30
   });
+  const [banner, setBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    const status = searchParams.get('wise');
+    const reason = searchParams.get('reason');
+    if (!status) {
+      return;
+    }
+    if (status === 'linked') {
+      setBanner({ type: 'success', message: 'Wise account linked successfully.' });
+    } else {
+      setBanner({
+        type: 'error',
+        message: `Wise linking failed${reason ? `: ${reason}` : '.'}`
+      });
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('wise');
+    next.delete('reason');
+    setSearchParams(next, { replace: true });
+    queryClient.invalidateQueries({ queryKey: ['settings'] });
+  }, [queryClient, searchParams, setSearchParams]);
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -32,12 +56,36 @@ const SettingsPage = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] })
   });
 
+  const wiseOauthMutation = useMutation({
+    mutationFn: async () => {
+      const response = await client.get('/wise/oauth/url');
+      return response.data as { url: string };
+    },
+    onSuccess: (payload) => {
+      window.location.href = payload.url;
+    },
+    onError: () => {
+      setBanner({ type: 'error', message: 'Unable to start Wise linking flow. Please try again.' });
+    }
+  });
+
   if (isLoading) {
     return <Loader />;
   }
 
   return (
     <div className="space-y-6">
+      {banner && (
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            banner.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-rose-200 bg-rose-50 text-rose-700'
+          }`}
+        >
+          {banner.message}
+        </div>
+      )}
       <header>
         <h2 className="font-heading text-2xl font-semibold text-slate-900">Settings</h2>
         <p className="text-sm text-slate-500">Manage API credentials, defaults, and sync preferences.</p>
@@ -49,6 +97,21 @@ const SettingsPage = () => {
           <p className="mt-2 text-xs text-slate-500">
             Securely stored with AES-256 encryption. Required for automatic sync.
           </p>
+          <button
+            type="button"
+            className="mt-3 inline-flex items-center gap-2 rounded-md border border-primary bg-white px-3 py-2 text-sm font-medium text-primary hover:bg-primary hover:text-white"
+            onClick={() => wiseOauthMutation.mutate()}
+            disabled={wiseOauthMutation.isPending}
+          >
+            {wiseOauthMutation.isPending ? (
+              <>
+                <span className="block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Redirecting…
+              </>
+            ) : (
+              'Connect with Wise'
+            )}
+          </button>
           <input
             type="password"
             placeholder="Wise API token"

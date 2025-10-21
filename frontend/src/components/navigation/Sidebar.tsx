@@ -123,7 +123,7 @@ const navItems = [
 const Sidebar = () => (
   <aside className="hidden h-screen w-72 shrink-0 flex-col bg-white px-8 pb-10 pt-2 shadow-sm lg:flex">
     <div className="flex items-center justify-center py-4">
-      <img src={logoUrl} alt="HeySalad logo" className="h-24 w-auto drop-shadow-sm" />
+      <img src={logoUrl} alt="HeySalad® logo" className="h-24 w-auto drop-shadow-sm" />
     </div>
     <div className="flex-1">
       <nav className="mt-10 space-y-2">
@@ -159,7 +159,7 @@ const Sidebar = () => (
       </nav>
     </div>
     <div className="mt-auto flex items-center justify-center rounded-lg bg-slate-50 py-4 text-xs text-slate-400">
-      HeySalad OÜ (17327633) · © 2025
+      HeySalad® OÜ (17327633) · © 2025
     </div>
   </aside>
 );

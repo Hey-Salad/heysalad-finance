@@ -1,6 +1,6 @@
-# HeySalad Finance
+# HeySalad® Finance
 
-Monorepo for the HeySalad Finance platform. It contains the production API and the customer dashboard that run on top of the same Supabase/Postgres data store.
+Monorepo for the HeySalad® Finance platform. It contains the production API and the customer dashboard that run on top of the same Supabase/Postgres data store.
 
 | Package   | Description                                                                 |
 |-----------|-----------------------------------------------------------------------------|

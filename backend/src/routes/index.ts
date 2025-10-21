@@ -7,8 +7,10 @@ import * as stripeController from '../controllers/stripeController';
 import * as settingsController from '../controllers/settingsController';
 import * as balanceController from '../controllers/balanceController';
 import * as dataImportController from '../controllers/dataImportController';
+import * as wiseOauthController from '../controllers/wiseOauthController';
 import { authenticate } from '../middleware/auth';
 import { upload } from '../middleware/upload';
+import { config } from '../config/env';
 
 const router = Router();
 
@@ -16,6 +18,9 @@ router.post('/auth/register', authController.register);
 router.post('/auth/login', authController.login);
 router.post('/auth/refresh', authController.refresh);
 router.post('/auth/logout', authController.logout);
+if (config.allowDevAutoLogin) {
+  router.post('/auth/dev-login', authController.devLogin);
+}
 
 router.get('/transactions', authenticate, transactionController.listTransactions);
 router.get('/transactions/export', authenticate, transactionController.exportTransactions);
@@ -48,5 +53,8 @@ router.get('/payments', authenticate, stripeController.listPayments);
 
 router.get('/settings', authenticate, settingsController.getSettings);
 router.put('/settings', authenticate, settingsController.updateSettings);
+
+router.get('/wise/oauth/url', authenticate, wiseOauthController.getAuthorizationUrl);
+router.get('/wise/oauth/callback', wiseOauthController.handleCallback);
 
 export default router;

@@ -31,6 +31,10 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(10)
 });
 
+const devLoginSchema = z.object({
+  email: z.string().email()
+});
+
 const tokenResponse = (
   accessToken: string,
   refreshToken: string,
@@ -117,4 +121,28 @@ export const logout = async (req: Request, res: Response) => {
     await revokeRefreshTokens(tokenDoc.userId);
   }
   res.status(204).send();
+};
+
+export const devLogin = async (req: Request, res: Response) => {
+  if (!config.isDevelopment || !config.allowDevAutoLogin) {
+    return res.status(403).json({ message: 'Dev login disabled' });
+  }
+
+  const { email } = devLoginSchema.parse(req.body);
+  const user = await getUserByEmail(email);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  const authUser: AuthUser = { id: user.id, email: user.email };
+  const tokens = await generateRefreshToken(authUser);
+
+  res.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      company: user.company
+    },
+    tokens: tokenResponse(tokens.accessToken, tokens.refreshToken, tokens.refreshTokenExpiresAt)
+  });
 };

@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import MainLayout from './layouts/MainLayout';
 import Loader from './components/Loader';
+import MainLayout from './layouts/MainLayout';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
@@ -11,24 +11,34 @@ const FinancialModelingPage = lazy(() => import('./pages/FinancialModelingPage')
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AgentsPage = lazy(() => import('./pages/AgentsPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 const App = () => {
   return (
-    <MainLayout>
-      <Suspense fallback={<Loader />}>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/transactions" element={<TransactionsPage />} />
-          <Route path="/financial-statements" element={<FinancialStatementsPage />} />
-          <Route path="/runway-calculator" element={<RunwayCalculatorPage />} />
-          <Route path="/financial-modeling" element={<FinancialModelingPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/agents" element={<AgentsPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-        </Routes>
-      </Suspense>
-    </MainLayout>
+    <Suspense fallback={<Loader />}>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route
+          element={
+            <MainLayout>
+              <Suspense fallback={<Loader />}>
+                <Routes>
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/transactions" element={<TransactionsPage />} />
+                  <Route path="/financial-statements" element={<FinancialStatementsPage />} />
+                  <Route path="/runway-calculator" element={<RunwayCalculatorPage />} />
+                  <Route path="/financial-modeling" element={<FinancialModelingPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/agents" element={<AgentsPage />} />
+                  <Route path="/admin" element={<AdminPage />} />
+                </Routes>
+              </Suspense>
+            </MainLayout>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 };
 

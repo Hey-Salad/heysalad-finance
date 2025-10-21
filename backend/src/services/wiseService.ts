@@ -8,6 +8,7 @@ import {
   getUserById,
   getWiseToken as decryptWiseToken,
   setWiseProfileId,
+  setWiseToken,
   UserWithSecrets
 } from '../repositories/userRepository';
 import { upsertBalance } from '../repositories/balanceRepository';
@@ -78,9 +79,16 @@ export interface SyncResult {
 }
 
 const MAX_INTERVAL_DAYS = 469;
+const getOauthBaseUrl = () =>
+  config.isProduction ? 'https://wise.com' : 'https://sandbox.transferwise.tech';
 
-const getBaseUrl = (useSandbox?: boolean): string =>
-  useSandbox || config.isDevelopment ? config.WISE_SANDBOX_URL : config.WISE_API_URL;
+const getBaseUrl = (useSandbox?: boolean): string => {
+  const sandbox = useSandbox || config.isDevelopment;
+  if (config.useWiseMtls) {
+    return sandbox ? config.WISE_SANDBOX_MTLS_URL : config.WISE_API_MTLS_URL;
+  }
+  return sandbox ? config.WISE_SANDBOX_URL : config.WISE_API_URL;
+};
 
 const buildClient = (token: string, useSandbox?: boolean): AxiosInstance =>
   axios.create({
@@ -117,17 +125,94 @@ const determineType = (entry: WiseStatementEntry): 'income' | 'expense' | 'trans
   return 'expense';
 };
 
+interface WiseTokenMeta {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number;
+  tokenType?: string;
+  scope?: string;
+}
+
 export class WiseService {
   private async ensureUser(userId: string) {
     const user = await getUserById(userId, { includeSecrets: true });
     if (!user) {
       throw new Error('User not found');
     }
-    const token = decryptWiseToken(user as UserWithSecrets);
-    if (!token) {
-      throw new Error('Wise API token not configured for user');
+    const storedToken = decryptWiseToken(user as UserWithSecrets);
+    const tokenMeta = await this.resolveToken(userId, storedToken);
+    return { user: user as UserWithSecrets, token: tokenMeta.accessToken };
+  }
+
+  private async resolveToken(userId: string, stored?: string): Promise<WiseTokenMeta> {
+    if (stored) {
+      let parsed: WiseTokenMeta;
+      try {
+        parsed = JSON.parse(stored) as WiseTokenMeta;
+        if (!parsed.accessToken) {
+          parsed = { accessToken: stored };
+        }
+      } catch {
+        parsed = { accessToken: stored };
+      }
+
+      if (parsed.expiresAt && parsed.expiresAt <= Date.now() + 60_000) {
+        if (!parsed.refreshToken) {
+          throw new Error('Wise access token expired. Please reconnect your Wise integration.');
+        }
+        return this.refreshAccessToken(userId, parsed.refreshToken);
+      }
+
+      return parsed;
     }
-    return { user: user as UserWithSecrets, token };
+
+    if (config.WISE_API_TOKEN) {
+      return { accessToken: config.WISE_API_TOKEN };
+    }
+
+    throw new Error('Wise API token not configured for user');
+  }
+
+  private buildTokenPayload(data: Record<string, unknown>): WiseTokenMeta {
+    const expiresIn = Number(data.expires_in ?? 0);
+    return {
+      accessToken: String(data.access_token ?? ''),
+      refreshToken: data.refresh_token ? String(data.refresh_token) : undefined,
+      tokenType: data.token_type ? String(data.token_type) : undefined,
+      scope: data.scope ? String(data.scope) : undefined,
+      expiresAt: expiresIn ? Date.now() + expiresIn * 1000 : undefined
+    };
+  }
+
+  private async refreshAccessToken(userId: string, refreshToken: string): Promise<WiseTokenMeta> {
+    if (
+      !config.WISE_OAUTH_CLIENT_ID ||
+      !config.WISE_OAUTH_CLIENT_SECRET ||
+      !config.WISE_OAUTH_REDIRECT_URI
+    ) {
+      throw new Error('Wise OAuth credentials are not configured');
+    }
+
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: config.WISE_OAUTH_CLIENT_ID,
+      client_secret: config.WISE_OAUTH_CLIENT_SECRET,
+      redirect_uri: config.WISE_OAUTH_REDIRECT_URI
+    });
+
+    const response = await axios.post(`${getOauthBaseUrl()}/oauth/token`, params.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+
+    const payload = this.buildTokenPayload(response.data);
+    if (!payload.accessToken) {
+      throw new Error('Failed to refresh Wise access token');
+    }
+
+    await setWiseToken(userId, JSON.stringify(payload));
+    logger.info('Wise access token refreshed', { userId });
+    return payload;
   }
 
   private async fetchProfileId(userId: string, client: AxiosInstance): Promise<string> {

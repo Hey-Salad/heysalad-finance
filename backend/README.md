@@ -1,4 +1,4 @@
-# HeySalad Finance API
+# HeySalad® Finance API
 
 Production-ready Express + TypeScript backend providing Wise, Stripe, AI categorisation, and accounting services.
 
@@ -14,20 +14,10 @@ Production-ready Express + TypeScript backend providing Wise, Stripe, AI categor
    ```bash
    npm install
    ```
-2. Create `.env` from `.env.example` and set:
-   ```
-   SUPABASE_URL=https://<your-supabase-project>.supabase.co
-   SUPABASE_SERVICE_ROLE_KEY=service-role-key
-   JWT_SECRET=...
-   JWT_REFRESH_SECRET=...
-   ENCRYPTION_KEY=32-char-hex
-   WISE_API_URL=https://api.transferwise.tech
-   WISE_SANDBOX_URL=https://api.sandbox.transferwise.tech
-   STRIPE_SECRET_KEY=sk_test_...
-   STRIPE_PUBLISHABLE_KEY=pk_test_...
-   STRIPE_WEBHOOK_SECRET=whsec_...
-   FRONTEND_URL=http://localhost:5173
-   ```
+2. Pick an environment file:
+   - `.env.sandbox` – template prefilled for Wise sandbox testing on localhost. Duplicate it as `.env` or run with `npm run dev:sandbox`.
+   - `.env.production` – template with placeholders for production secrets.
+   - Alternatively create your own `.env` from scratch.
 3. Run in development:
    ```bash
    npm run dev
@@ -36,6 +26,26 @@ Production-ready Express + TypeScript backend providing Wise, Stripe, AI categor
    ```bash
    npm run build && npm start
    ```
+
+Useful scripts:
+
+- `npm run dev:sandbox` – load `.env.sandbox` and start the dev server.
+- `npm run dev:prod` – load `.env.production` locally (still runs in dev mode, but with production creds).
+
+### Wise environments
+
+Wise exposes separate endpoints for Sandbox and Production, each with both TLS and mTLS hosts:
+
+| Environment | TLS endpoint | mTLS endpoint |
+|-------------|--------------|---------------|
+| Sandbox     | `https://api.sandbox.transferwise.tech` | `https://api-mtls.sandbox.transferwise.tech` |
+| Production  | `https://api.wise.com` | `https://api-mtls.transferwise.com` |
+
+Use sandbox credentials when developing locally. If you need mTLS, set `WISE_USE_MTLS=true` and configure the relevant certificates in your runtime (for example, via `NODE_EXTRA_CA_CERTS` or a custom Axios agent).
+
+### Dev utilities
+
+To speed up local testing you can set `ALLOW_DEV_AUTO_LOGIN=true` and call `POST /api/auth/dev-login` with `{ "email": "user@example.com" }`. The endpoint is only available in development mode and issues a fresh access/refresh token pair without requiring a password.
 
 ## Testing
 
