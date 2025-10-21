@@ -1,5 +1,7 @@
 process.env.NODE_ENV = 'test';
-process.env.MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/heysalad-test';
+process.env.SUPABASE_URL = process.env.SUPABASE_URL ?? 'http://localhost:54321';
+process.env.SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? 'test-service-role-key';
 process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'test-secret-key-test-secret-key-1234';
 process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? 'refresh-secret-key-refresh-secret-key-1234';
 process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY ?? '0123456789abcdef0123456789abcdef';

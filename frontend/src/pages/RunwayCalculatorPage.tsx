@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { calculateRunwayScenario, fetchBurnRateMetrics } from '../store/runwayApi';
 import Loader from '../components/Loader';
 
@@ -8,6 +8,8 @@ const multipliers = [0.5, 0.75, 1, 1.25, 1.5];
 const RunwayCalculatorPage = () => {
   const [revenueMultiplier, setRevenueMultiplier] = useState(1);
   const [expenseMultiplier, setExpenseMultiplier] = useState(1);
+  const [scenarioResult, setScenarioResult] = useState<number | null>(null);
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['burn-rate'],
@@ -16,6 +18,10 @@ const RunwayCalculatorPage = () => {
 
   const scenarioMutation = useMutation({
     mutationFn: () => calculateRunwayScenario({ revenueMultiplier, expenseMultiplier }),
+    onSuccess: (result) => {
+      setScenarioResult(result.scenarioRunway);
+      queryClient.invalidateQueries({ queryKey: ['burn-rate'] });
+    },
     onError: (error: unknown) =>
       window.alert(
         `Scenario calculation failed: ${
@@ -24,16 +30,21 @@ const RunwayCalculatorPage = () => {
       )
   });
 
-  const scenarioRunway = scenarioMutation.data?.scenarioRunway ?? data?.projectedRunwayMonths ?? 0;
+  const effectiveRunway =
+    scenarioResult ?? scenarioMutation.data?.scenarioRunway ?? data?.projectedRunwayMonths ?? 0;
+  const delta =
+    scenarioResult !== null && Number.isFinite(data.projectedRunwayMonths)
+      ? scenarioResult - data.projectedRunwayMonths
+      : null;
 
   const runwayStatus = useMemo(() => {
-    if (!scenarioRunway || !Number.isFinite(scenarioRunway)) {
+    if (!effectiveRunway || !Number.isFinite(effectiveRunway)) {
       return 'Default alive';
     }
-    if (scenarioRunway < 3) return 'Critical';
-    if (scenarioRunway < 6) return 'Warning';
+    if (effectiveRunway < 3) return 'Critical';
+    if (effectiveRunway < 6) return 'Warning';
     return 'Healthy';
-  }, [scenarioRunway]);
+  }, [effectiveRunway]);
 
   if (isLoading || !data) {
     return <Loader />;
@@ -43,7 +54,7 @@ const RunwayCalculatorPage = () => {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl text-slate-800">Runway Calculator</h2>
+          <h2 className="font-heading text-2xl font-semibold text-slate-900">Runway Calculator</h2>
           <p className="text-sm text-slate-500">
             Explore best, base, and worst-case scenarios for monthly runway projections.
           </p>
@@ -51,8 +62,8 @@ const RunwayCalculatorPage = () => {
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-600">Baseline Metrics</h3>
+        <section className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+          <h3 className="text-sm font-semibold text-slate-700">Baseline Metrics</h3>
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
             <li>Current cash: €{data.currentCash.toLocaleString()}</li>
             <li>Average net burn: €{data.averageNetBurn.toFixed(2)} / month</li>
@@ -63,8 +74,8 @@ const RunwayCalculatorPage = () => {
           </ul>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-600">Scenario Builder</h3>
+        <section className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+          <h3 className="text-sm font-semibold text-slate-700">Scenario Builder</h3>
           <div className="mt-3 grid gap-4 md:grid-cols-2">
             <div>
               <label className="text-xs uppercase tracking-wide text-slate-500">Revenue multiplier</label>
@@ -106,12 +117,31 @@ const RunwayCalculatorPage = () => {
         </section>
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-600">Scenario Output</h3>
+      <section className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-700">Scenario Output</h3>
+          {scenarioMutation.isPending && (
+            <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+              </svg>
+              Syncing…
+            </span>
+          )}
+        </div>
         <p className="mt-3 text-sm text-slate-700">
-          Runway with selected multipliers: {Number.isFinite(scenarioRunway) ? `${scenarioRunway.toFixed(1)} months` : '∞'}
+          Runway with selected multipliers:{' '}
+          {Number.isFinite(effectiveRunway) ? `${effectiveRunway.toFixed(1)} months` : '∞'}
         </p>
-        <p className="text-xs text-slate-500">Save scenarios to persist them once backend integration is ready.</p>
+        {delta !== null && (
+          <p className="text-xs text-slate-500">
+            Change vs baseline: {delta >= 0 ? '+' : ''}
+            {delta.toFixed(1)} months.
+          </p>
+        )}
+        <p className="mt-2 text-xs text-slate-400">
+          Save scenarios to persist them once backend integration is ready.
+        </p>
       </section>
     </div>
   );

@@ -1,8 +1,10 @@
 import dayjs from 'dayjs';
-import { Types } from 'mongoose';
-import { Balance } from '../models/Balance';
-import { BurnRateScenario } from '../models/BurnRateScenario';
-import { Transaction } from '../models/Transaction';
+import { listBalances } from '../repositories/balanceRepository';
+import { listTransactionsBetween } from '../repositories/transactionRepository';
+import {
+  listScenarios as listScenarioRecords,
+  upsertScenario
+} from '../repositories/burnRateScenarioRepository';
 
 export interface BurnRateMetrics {
   grossBurnRate: {
@@ -37,14 +39,11 @@ export interface ScenarioResult {
 }
 
 const sumTransactions = async (
-  userId: Types.ObjectId,
+  userId: string,
   start: Date,
   end: Date
 ): Promise<{ income: number; expenses: number }> => {
-  const transactions = await Transaction.find({
-    userId,
-    date: { $gte: start, $lte: end }
-  }).lean();
+  const transactions = await listTransactionsBetween(userId, start, end);
 
   return transactions.reduce(
     (acc, transaction) => {
@@ -74,7 +73,7 @@ const calculateRunway = (cash: number, netBurn: number): number => {
   return cash / netBurn;
 };
 
-export const calculateBurnMetrics = async (userId: Types.ObjectId): Promise<BurnRateMetrics> => {
+export const calculateBurnMetrics = async (userId: string): Promise<BurnRateMetrics> => {
   const now = dayjs();
 
   const range7 = {
@@ -97,7 +96,7 @@ export const calculateBurnMetrics = async (userId: Types.ObjectId): Promise<Burn
     sumTransactions(userId, range7.start, range7.end),
     sumTransactions(userId, range30.start, range30.end),
     sumTransactions(userId, range90.start, range90.end),
-    Balance.find({ userId }).lean()
+    listBalances(userId)
   ]);
 
   const grossBurn = {
@@ -113,7 +112,9 @@ export const calculateBurnMetrics = async (userId: Types.ObjectId): Promise<Burn
   };
 
   const currentCash = balances.reduce((sum, balance) => sum + balance.amount, 0);
-  const averageMonthlyIncome = averageMonthly(metrics30.income, range30.days);\n+  const averageMonthlyExpenses = averageMonthly(metrics30.expenses, range30.days);\n+  const averageNetBurn = averageMonthlyExpenses - averageMonthlyIncome;
+  const averageMonthlyIncome = averageMonthly(metrics30.income, range30.days);
+  const averageMonthlyExpenses = averageMonthly(metrics30.expenses, range30.days);
+  const averageNetBurn = averageMonthlyExpenses - averageMonthlyIncome;
   const projectedRunwayMonths = calculateRunway(currentCash, averageNetBurn);
 
   return {
@@ -138,34 +139,32 @@ export const projectRunwayWithScenario = (
 };
 
 export const saveScenario = async (
-  userId: Types.ObjectId,
+  userId: string,
   input: ScenarioInput,
   baseline: BurnRateMetrics
 ): Promise<ScenarioResult> => {
   const projectedRunway = projectRunwayWithScenario(baseline, input);
-  const doc = await BurnRateScenario.findOneAndUpdate(
-    { userId, name: input.name },
-    {
-      revenueMultiplier: input.revenueMultiplier,
-      expenseMultiplier: input.expenseMultiplier,
-      projectedRunway
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+  const record = await upsertScenario({
+    user_id: userId,
+    name: input.name,
+    revenue_multiplier: input.revenueMultiplier,
+    expense_multiplier: input.expenseMultiplier,
+    projected_runway: projectedRunway
+  });
 
   return {
-    id: doc._id.toString(),
-    name: doc.name,
-    revenueMultiplier: doc.revenueMultiplier,
-    expenseMultiplier: doc.expenseMultiplier,
-    projectedRunway: doc.projectedRunway
+    id: record.id,
+    name: record.name,
+    revenueMultiplier: record.revenueMultiplier,
+    expenseMultiplier: record.expenseMultiplier,
+    projectedRunway: record.projectedRunway
   };
 };
 
-export const listScenarios = async (userId: Types.ObjectId): Promise<ScenarioResult[]> => {
-  const scenarios = await BurnRateScenario.find({ userId }).lean();
+export const listScenarios = async (userId: string): Promise<ScenarioResult[]> => {
+  const scenarios = await listScenarioRecords(userId);
   return scenarios.map((scenario) => ({
-    id: scenario._id.toString(),
+    id: scenario.id,
     name: scenario.name,
     revenueMultiplier: scenario.revenueMultiplier,
     expenseMultiplier: scenario.expenseMultiplier,

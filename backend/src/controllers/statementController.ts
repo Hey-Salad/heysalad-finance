@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import { Types } from 'mongoose';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../middleware/auth';
 import {
@@ -32,7 +31,7 @@ const ensureUser = (req: AuthenticatedRequest, res: Response) => {
     res.status(401).json({ message: 'Unauthorized' });
     return null;
   }
-  return new Types.ObjectId(req.user.id);
+  return req.user.id;
 };
 
 export const getBalanceSheetStatement = async (req: AuthenticatedRequest, res: Response) => {

@@ -14,11 +14,15 @@ const IncomeExpenseChart = ({ data }: IncomeExpenseChartProps) => (
   <div className="h-56 w-full">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis dataKey="month" stroke="#94a3b8" fontSize={12} />
-        <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(value) => `${value / 1000}k`} />
+        <YAxis
+          stroke="#94a3b8"
+          fontSize={12}
+          tickFormatter={(value) => (value >= 1000 ? `${value / 1000}k` : value)}
+        />
         <Tooltip
-          contentStyle={{ background: '#0f172a', border: '1px solid #334155', color: '#f8fafc' }}
+          contentStyle={{ background: '#ffffff', border: '1px solid #cbd5f5', color: '#0f172a' }}
         />
         <Legend wrapperStyle={{ color: '#94a3b8' }} />
         <Bar dataKey="income" fill="#22c55e" radius={[4, 4, 0, 0]} />

@@ -1,13 +1,21 @@
 import axios, { AxiosInstance } from 'axios';
 import dayjs from 'dayjs';
-import { Types } from 'mongoose';
 import { config } from '../config/env';
-import { Balance } from '../models/Balance';
-import { Transaction, TransactionDocument } from '../models/Transaction';
-import { User } from '../models/User';
 import { categorizeTransaction } from './categorizationService';
-import { deriveTransactionType, upsertJournalEntriesForTransaction } from './accountingService';
+import { upsertJournalEntriesForTransaction } from './accountingService';
 import { logger } from '../utils/logger';
+import {
+  getUserById,
+  getWiseToken as decryptWiseToken,
+  setWiseProfileId,
+  UserWithSecrets
+} from '../repositories/userRepository';
+import { upsertBalance } from '../repositories/balanceRepository';
+import {
+  findLatestTransactionBySourceAndCurrency,
+  TransactionRecord,
+  upsertTransactionByWiseId
+} from '../repositories/transactionRepository';
 
 interface WiseProfileResponse {
   id: number;
@@ -66,7 +74,7 @@ export interface SyncOptions {
 
 export interface SyncResult {
   balances: Array<{ currency: string; amount: number }>;
-  transactions: TransactionDocument[];
+  transactions: TransactionRecord[];
 }
 
 const MAX_INTERVAL_DAYS = 469;
@@ -110,24 +118,24 @@ const determineType = (entry: WiseStatementEntry): 'income' | 'expense' | 'trans
 };
 
 export class WiseService {
-  private async ensureUser(userId: Types.ObjectId) {
-    const user = await User.findById(userId).select('+settings.wiseToken');
+  private async ensureUser(userId: string) {
+    const user = await getUserById(userId, { includeSecrets: true });
     if (!user) {
       throw new Error('User not found');
     }
-    const token = user.getWiseToken();
+    const token = decryptWiseToken(user as UserWithSecrets);
     if (!token) {
       throw new Error('Wise API token not configured for user');
     }
-    return { user, token };
+    return { user: user as UserWithSecrets, token };
   }
 
-  private async fetchProfileId(userId: Types.ObjectId, client: AxiosInstance): Promise<string> {
-    const user = await User.findById(userId);
+  private async fetchProfileId(userId: string, client: AxiosInstance): Promise<string> {
+    const user = await getUserById(userId, { includeSecrets: true });
     if (!user) {
       throw new Error('User not found');
     }
-    const existing = user.getWiseProfileId();
+    const existing = user.wiseProfileId;
     if (existing) {
       return existing;
     }
@@ -140,14 +148,13 @@ export class WiseService {
       throw new Error('No Wise profile found for token');
     }
 
-    user.setWiseProfileId(String(profile.id));
-    await user.save();
+    await setWiseProfileId(userId, String(profile.id));
 
     return String(profile.id);
   }
 
   private async storeBalances(
-    userId: Types.ObjectId,
+    userId: string,
     wiseBalances: WiseBalanceResponse[]
   ): Promise<Array<{ currency: string; amount: number }>> {
     const summaries: Array<{ currency: string; amount: number }> = [];
@@ -157,11 +164,12 @@ export class WiseService {
       wiseBalances.map(async (balance) => {
         const amount = balance.amount?.value ?? 0;
         summaries.push({ currency: balance.currency, amount });
-        await Balance.findOneAndUpdate(
-          { userId, currency: balance.currency },
-          { amount, lastUpdated: now },
-          { upsert: true, setDefaultsOnInsert: true }
-        );
+        await upsertBalance({
+          userId,
+          currency: balance.currency,
+          amount,
+          lastUpdated: now
+        });
       })
     );
 
@@ -192,59 +200,44 @@ export class WiseService {
   }
 
   private async upsertTransaction(
-    userId: Types.ObjectId,
+    userId: string,
     entry: WiseStatementEntry,
     category: { category: string; confidence: number },
     source: 'override' | 'ai'
-  ): Promise<TransactionDocument> {
+  ): Promise<TransactionRecord> {
     const amount = entry.amount.value;
     const description = determineDescription(entry);
     const recipientName = determineRecipient(entry);
+    const categoryConfidence = source === 'ai' ? category.confidence : 1;
 
-    const transaction = await Transaction.findOneAndUpdate(
-      { wiseId: String(entry.id) },
-      {
-        userId,
-        wiseId: String(entry.id),
-        date: new Date(entry.completedAt),
-        description,
-        amount,
-        currency: entry.amount.currency,
-        type: determineType(entry),
-        category: category.category,
-        categoryConfidence: category.confidence,
-        source: 'wise',
-        recipientName
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    const transaction = await upsertTransactionByWiseId({
+      user_id: userId,
+      wise_id: String(entry.id),
+      date: new Date(entry.completedAt).toISOString(),
+      description,
+      amount,
+      currency: entry.amount.currency,
+      type: determineType(entry),
+      category: category.category,
+      category_confidence: categoryConfidence,
+      source: 'wise',
+      recipient_name: recipientName ?? null,
+      notes: null
+    });
 
-    if (source === 'ai') {
-      transaction.categoryConfidence = category.confidence;
-    } else {
-      transaction.categoryConfidence = 1;
-    }
-
-    await transaction.save();
     await upsertJournalEntriesForTransaction(transaction);
 
     return transaction;
   }
 
   private async syncTransactionsForBalance(
-    userId: Types.ObjectId,
+    userId: string,
     client: AxiosInstance,
     profileId: string,
     balance: WiseBalanceResponse,
     options: SyncOptions
-  ): Promise<TransactionDocument[]> {
-    const latest = await Transaction.findOne({
-      userId,
-      currency: balance.currency,
-      source: 'wise'
-    })
-      .sort({ date: -1 })
-      .lean();
+  ): Promise<TransactionRecord[]> {
+    const latest = await findLatestTransactionBySourceAndCurrency(userId, 'wise', balance.currency);
 
     const defaultStart = latest ? dayjs(latest.date).subtract(1, 'day') : dayjs().subtract(90, 'day');
     const startDate = options.startDate ? dayjs(options.startDate) : defaultStart;
@@ -263,7 +256,7 @@ export class WiseService {
       balance.currency
     );
 
-    const synced: TransactionDocument[] = [];
+    const synced: TransactionRecord[] = [];
 
     for (const entry of entries) {
       const description = determineDescription(entry);
@@ -281,20 +274,22 @@ export class WiseService {
     return synced;
   }
 
-  public async syncUserData(userId: Types.ObjectId, options: SyncOptions = {}): Promise<SyncResult> {
+  public async syncUserData(userId: string, options: SyncOptions = {}): Promise<SyncResult> {
     const { user, token } = await this.ensureUser(userId);
     const client = buildClient(token, options.useSandbox);
-    const profileId = await this.fetchProfileId(user._id, client);
+    const profileId = await this.fetchProfileId(user.id, client);
 
-    const balancesResponse = await client.get<WiseBalanceResponse[]>(\n      `/v4/profiles/${profileId}/balances`\n    );\n\n    const balances: WiseBalanceResponse[] = balancesResponse.data;
+    const balancesResponse = await client.get<WiseBalanceResponse[]>(`/v4/profiles/${profileId}/balances`);
+
+    const balances: WiseBalanceResponse[] = balancesResponse.data;
     const filteredBalances = options.currency
       ? balances.filter((balance) => balance.currency === options.currency)
       : balances;
 
-    const balanceSummaries = await this.storeBalances(user._id, balances);
+    const balanceSummaries = await this.storeBalances(user.id, balances);
     const transactionsArrays = await Promise.all(
       filteredBalances.map((balance) =>
-        this.syncTransactionsForBalance(user._id, client, profileId, balance, options)
+        this.syncTransactionsForBalance(user.id, client, profileId, balance, options)
       )
     );
 

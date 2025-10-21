@@ -1,13 +1,16 @@
 import path from 'path';
 import { parse } from 'csv-parse/sync';
-import pdfParse from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 import xlsx from 'xlsx';
 import dayjs from 'dayjs';
-import { Types } from 'mongoose';
-import { Transaction, TransactionDocument } from '../models/Transaction';
 import { categorizeTransaction } from './categorizationService';
 import { upsertJournalEntriesForTransaction } from './accountingService';
 import { logger } from '../utils/logger';
+import {
+  createTransaction,
+  findTransactionByExternalId,
+  TransactionType
+} from '../repositories/transactionRepository';
 
 export interface ImportedRecord {
   date: Date;
@@ -116,38 +119,43 @@ const parseXLSX = (buffer: Buffer): ImportedRecord[] => {
 };
 
 const parsePDF = async (buffer: Buffer): Promise<ImportedRecord[]> => {
-  const parsed = await pdfParse(buffer);
-  const lines = parsed.text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const records: ImportedRecord[] = [];
-  const lineRegex = /(\d{4}-\d{2}-\d{2})\s+(.+?)\s+(-?\d+[.,]?\d*)\s+([A-Z]{3})/;
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const parsed = await parser.getText();
+    const lines = parsed.text.split(/\r?\n/).map((line: string) => line.trim()).filter(Boolean);
+    const records: ImportedRecord[] = [];
+    const lineRegex = /(\d{4}-\d{2}-\d{2})\s+(.+?)\s+(-?\d+[.,]?\d*)\s+([A-Z]{3})/;
 
-  for (const line of lines) {
-    const match = line.match(lineRegex);
-    if (!match) {
-      continue;
+    for (const line of lines) {
+      const match = line.match(lineRegex);
+      if (!match) {
+        continue;
+      }
+
+      const [, date, description, amountValue, currency] = match;
+      const amount = Number(amountValue.replace(',', ''));
+      const parsedDate = dayjs(date);
+
+      if (!parsedDate.isValid() || Number.isNaN(amount)) {
+        continue;
+      }
+
+      records.push({
+        date: parsedDate.toDate(),
+        description,
+        amount,
+        currency: normaliseCurrency(currency)
+      });
     }
 
-    const [, date, description, amountValue, currency] = match;
-    const amount = Number(amountValue.replace(',', ''));
-    const parsedDate = dayjs(date);
-
-    if (!parsedDate.isValid() || Number.isNaN(amount)) {
-      continue;
+    if (!records.length) {
+      logger.warn('PDF import produced no structured rows, please ensure the document is tabular.');
     }
 
-    records.push({
-      date: parsedDate.toDate(),
-      description,
-      amount,
-      currency: normaliseCurrency(currency)
-    });
+    return records;
+  } finally {
+    await parser.destroy();
   }
-
-  if (!records.length) {
-    logger.warn('PDF import produced no structured rows, please ensure the document is tabular.');
-  }
-
-  return records;
 };
 
 const parseBufferByExtension = async (file: { buffer: Buffer; originalname: string }): Promise<ImportedRecord[]> => {
@@ -173,7 +181,7 @@ const createTransactionHash = (record: ImportedRecord): string => {
 };
 
 export const importTransactionsFromFile = async (
-  userId: Types.ObjectId,
+  userId: string,
   file: Express.Multer.File
 ): Promise<ImportSummary> => {
   const records = await parseBufferByExtension({ buffer: file.buffer, originalname: file.originalname });
@@ -184,10 +192,7 @@ export const importTransactionsFromFile = async (
   for (const record of records) {
     const hash = createTransactionHash(record);
 
-    const existing = await Transaction.findOne({
-      userId,
-      externalId: hash
-    });
+    const existing = await findTransactionByExternalId(userId, hash);
 
     if (existing) {
       skipped += 1;
@@ -201,24 +206,30 @@ export const importTransactionsFromFile = async (
       currency: record.currency
     });
 
-    const transactionType: TransactionDocument['type'] =
-      record.amount > 0 ? 'income' : record.amount < 0 ? 'expense' : 'transfer';
+    const transactionType: TransactionType =
+      record.amount > 0
+        ? 'income'
+        : record.amount < 0
+          ? 'expense'
+          : categorisation.category === 'Internal Transfer'
+            ? 'transfer'
+            : 'expense';
 
-    const transaction = new Transaction({
-      userId,
-      date: record.date,
+    const transaction = await createTransaction({
+      user_id: userId,
+      wise_id: null,
+      external_id: hash,
+      date: record.date.toISOString(),
       description: record.description,
       amount: record.amount,
       currency: record.currency,
       type: transactionType,
       category: categorisation.category,
-      categoryConfidence: categorisation.confidence,
+      category_confidence: categorisation.confidence,
       source: 'manual',
-      notes: record.notes,
-      externalId: hash
+      notes: record.notes ?? null,
+      recipient_name: null
     });
-
-    await transaction.save();
     await upsertJournalEntriesForTransaction(transaction);
 
     imported += 1;

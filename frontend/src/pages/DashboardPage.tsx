@@ -10,11 +10,11 @@ import { fetchDashboardSummary } from '../api/dashboard';
 
 const statusBadge = (tone: 'positive' | 'warning' | 'critical' | 'neutral') =>
   clsx(
-    'inline-flex items-center rounded-full px-4 py-1.5 text-xs font-semibold',
-    tone === 'positive' && 'bg-emerald-100 text-emerald-700',
-    tone === 'warning' && 'bg-amber-100 text-amber-700',
-    tone === 'critical' && 'bg-rose-100 text-rose-700',
-    tone === 'neutral' && 'bg-slate-100 text-slate-600'
+    'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium',
+    tone === 'positive' && 'border-emerald-200 bg-emerald-50 text-emerald-600',
+    tone === 'warning' && 'border-amber-200 bg-amber-50 text-amber-600',
+    tone === 'critical' && 'border-rose-200 bg-rose-50 text-rose-600',
+    tone === 'neutral' && 'border-slate-200 bg-slate-50 text-slate-500'
   );
 
 const formatCurrency = (amount: number, currency = 'EUR') =>
@@ -79,15 +79,38 @@ const DashboardPage = () => {
   const runway = data.burnRate.projectedRunwayMonths;
   const lastTransaction = data.recentTransactions[0];
 
-  const summaryChips = [
-    { label: 'Active Accounts', value: data.balances.length.toString() },
+  const summaryTiles = [
     {
-      label: 'Net Burn (30d)',
-      value: formatCurrency(data.burnRate.netBurnRate.thirtyDay ?? data.burnRate.averageNetBurn, primaryCurrency)
+      label: 'Balances',
+      value: data.balances.length.toString(),
+      icon: (
+        <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M3 7h18v2H3zM5 11h14v10H5z" opacity=".4" />
+          <path d="M10 2h4v3h-4zM8 15h8v2H8z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Net burn',
+      value: formatCurrency(
+        data.burnRate.netBurnRate.thirtyDay ?? data.burnRate.averageNetBurn,
+        primaryCurrency
+      ),
+      icon: (
+        <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M4 14s1.5-2.5 4-4c2-1.2 3-2 4-6 1 3.5 3 4.5 5 6.5s1 5.5-1 7c-3 2.5-7-.5-7-.5" />
+        </svg>
+      )
     },
     {
       label: 'Runway',
-      value: Number.isFinite(runway) ? `${runway.toFixed(1)} mo` : '∞'
+      value: Number.isFinite(runway) ? `${runway.toFixed(1)} mo` : '∞',
+      icon: (
+        <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 2v20M4 18l8 4 8-4M4 6l8-4 8 4" />
+          <path d="M4 14l8 4 8-4M4 10l8 4 8-4" opacity=".5" />
+        </svg>
+      )
     }
   ];
 
@@ -119,32 +142,49 @@ const DashboardPage = () => {
   const cards = [
     {
       title: 'Cash Hub',
-      subtitle: `Wise · Primary ${primaryCurrency}`,
+      subtitle: primaryCurrency,
       status: cashStatus,
+      empty: false,
+      icon: (
+        <svg className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M3 10h18" />
+        </svg>
+      ),
       metrics: [
         { label: 'Balance', value: formatCurrency(primaryBalance?.amount ?? 0, primaryCurrency) },
-        { label: 'Currencies synced', value: data.balances.length },
-        { label: 'Total holdings', value: formatCurrency(totalBalance, primaryCurrency) }
-      ],
-      note: `Monitoring ${data.balances.length} Wise balances across currencies.`
+        { label: 'Currencies', value: data.balances.length.toString() },
+        { label: 'Total', value: formatCurrency(totalBalance, primaryCurrency) }
+      ]
     },
     {
       title: 'Burn Rate',
-      subtitle: 'Last 30 days snapshot',
+      subtitle: '30 day view',
       status: burnStatus,
+      empty: !Number.isFinite(runway),
+      icon: (
+        <svg className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M5 12a7 7 0 0 1 11-5.3c1.5 1.4 2.6 3.8 2.6 5.9A7.6 7.6 0 0 1 12 21a5.2 5.2 0 0 1-5-4l2.5-1.5A2.5 2.5 0 0 0 12 18a3.2 3.2 0 0 0 3-3.4c0-1.2-.7-2.4-1.9-3.5" />
+        </svg>
+      ),
       metrics: [
         { label: 'Net burn', value: formatCurrency(data.burnRate.averageNetBurn, primaryCurrency) },
-        { label: 'Monthly income', value: formatCurrency(data.burnRate.averageMonthlyIncome, primaryCurrency) },
-        { label: 'Runway', value: Number.isFinite(runway) ? `${runway.toFixed(1)} months` : 'Indefinite' }
-      ],
-      note: 'Runway updates automatically as new transactions sync from Wise and Stripe.'
+        { label: 'Income', value: formatCurrency(data.burnRate.averageMonthlyIncome, primaryCurrency) },
+        { label: 'Runway', value: Number.isFinite(runway) ? `${runway.toFixed(1)} mo` : 'Sync to calculate' }
+      ]
     },
     {
       title: 'Latest Activity',
-      subtitle: lastTransaction
-        ? `${lastTransaction.description} · ${dayjs(lastTransaction.date).format('MMM D, HH:mm')}`
-        : 'No transactions yet',
+      subtitle: lastTransaction ? dayjs(lastTransaction.date).format('MMM D · HH:mm') : 'No transactions',
       status: activityStatus,
+      empty: !lastTransaction,
+      icon: (
+        <svg className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M3 8h18M3 12h8M3 16h5" />
+          <circle cx="17" cy="16" r="4" />
+          <path d="m15.5 16 1.5 1.5 2.5-2.5" />
+        </svg>
+      ),
       metrics: [
         {
           label: 'Amount',
@@ -153,65 +193,105 @@ const DashboardPage = () => {
                 Math.abs(lastTransaction.amount),
                 lastTransaction.currency
               )}`
-            : '—'
+            : 'Add data'
         },
         { label: 'Category', value: lastTransaction ? lastTransaction.category : 'Awaiting data' },
-        { label: 'Transactions today', value: data.recentTransactions.length }
-      ],
-      note: lastTransaction
-        ? `Source: ${lastTransaction.source.toUpperCase()}. View details in Transactions.`
-        : 'Upload a CSV, Excel, or PDF to jump-start your ledger.'
+        { label: 'Today', value: data.recentTransactions.length.toString() }
+      ]
     }
   ];
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col space-y-10">
-      <section className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="font-display text-4xl text-slate-900">Finance Pulse</h1>
-          <p className="max-w-2xl text-base text-slate-500">
-            Live heartbeat of balances, burn rate, and revenue across your HeySalad finance stack.
-          </p>
+    <div className="flex w-full flex-col gap-8 px-4 pb-10 pt-2 sm:px-6 lg:px-10">
+      <section className="grid gap-4 lg:grid-cols-[1.4fr,1fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+          <h1 className="font-heading text-2xl font-semibold text-slate-900">Finance Pulse</h1>
+          <p className="mt-2 text-sm text-slate-500">Instant snapshot of liquidity, burn, and momentum.</p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {summaryTiles.map((tile) => (
+              <div
+                key={tile.label}
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-light-peach/30">{tile.icon}</span>
+                <div>
+                  <p className="text-xs uppercase text-slate-400">{tile.label}</p>
+                  <p className="text-sm font-semibold text-slate-800">{tile.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-3">
-          {summaryChips.map((chip) => (
-            <div
-              key={chip.label}
-              className="flex flex-col rounded-full border border-slate-200 bg-white px-6 py-3 shadow-sm"
-            >
-              <span className="text-xs uppercase text-slate-400">{chip.label}</span>
-              <span className="text-base font-semibold text-slate-700">{chip.value}</span>
+        <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+          <h2 className="flex items-center gap-2 font-heading text-lg font-semibold text-slate-900">
+            <svg className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M4 19h16M4 15l4-8 4 6 4-4 4 6" />
+            </svg>
+            Performance
+          </h2>
+          <div className="mt-5 grid gap-3 text-sm text-slate-600">
+            <div className="flex justify-between">
+              <span>Primary balance</span>
+              <span className="font-semibold text-slate-800">
+                {formatCurrency(primaryBalance?.amount ?? 0, primaryCurrency)}
+              </span>
             </div>
-          ))}
+            <div className="flex justify-between">
+              <span>Runway outlook</span>
+              <span className={statusBadge(burnStatus.tone)}>{burnStatus.label}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Last sync</span>
+              <span>{lastTransaction ? dayjs(lastTransaction.date).fromNow() : 'Awaiting data'}</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
+      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
-          <article key={card.title} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-slate-900">{card.title}</h3>
-                <p className="text-sm text-slate-500">{card.subtitle}</p>
+          <article
+            key={card.title}
+            className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-light-peach/40 text-primary">
+                {card.icon}
+              </span>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold text-slate-900">{card.title}</h3>
+                <p className="text-xs uppercase tracking-wide text-slate-400">{card.subtitle}</p>
               </div>
               <span className={statusBadge(card.status.tone)}>{card.status.label}</span>
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
               {card.metrics.map((metric) => (
                 <div key={`${card.title}-${metric.label}`}>
-                  <p className="text-xs uppercase text-slate-400">{metric.label}</p>
+                  <p className="text-[11px] uppercase text-slate-400">{metric.label}</p>
                   <p className="mt-1 text-lg font-semibold text-slate-800">{metric.value}</p>
                 </div>
               ))}
             </div>
-            <p className="mt-5 text-sm text-slate-500">{card.note}</p>
+            {card.empty && (
+              <div className="mt-5 flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-500">
+                <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span>Sync with Wise/Stripe to populate this card.</span>
+              </div>
+            )}
           </article>
         ))}
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-600">Cash Balance Trend</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M4 19h16M4 15l4-8 4 6 4-4 4 6" />
+            </svg>
+            Cash trend
+          </h3>
           {balanceTrendData.length ? (
             <div className="mt-4">
               <BalanceTrendChart data={balanceTrendData} />
@@ -222,8 +302,13 @@ const DashboardPage = () => {
             </p>
           )}
         </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-600">Income vs Expenses</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M4 6h16M4 12h10M4 18h7" />
+            </svg>
+            Income vs expenses
+          </h3>
           {incomeExpenseData.length ? (
             <div className="mt-4">
               <IncomeExpenseChart data={incomeExpenseData} />

@@ -1,11 +1,16 @@
 import { Response } from 'express';
 import { z } from 'zod';
 import dayjs from 'dayjs';
-import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { recordCategoryOverride } from '../services/categorizationService';
 import { wiseService } from '../services/wiseService';
-import { Transaction } from '../models/Transaction';
+import {
+  listTransactions as listTransactionsRepository,
+  getTransactionById as getTransactionByIdRepository,
+  updateTransactionById,
+  listAllTransactionsForUser,
+  TransactionRecord
+} from '../repositories/transactionRepository';
 import { upsertJournalEntriesForTransaction } from '../services/accountingService';
 
 const listSchema = z.object({
@@ -40,46 +45,24 @@ export const listTransactions = async (req: AuthenticatedRequest, res: Response)
     return res.status(401).json({ message: 'Unauthorized' });
   }
   const filters = listSchema.parse(req.query);
-  const query = { userId: req.user.id } as Record<string, unknown>;
+  const [startDate, endDate] = [
+    filters.startDate ? dayjs(filters.startDate).startOf('day').toDate() : undefined,
+    filters.endDate ? dayjs(filters.endDate).endOf('day').toDate() : undefined
+  ];
 
-  if (filters.startDate || filters.endDate) {
-    query.date = {
-      ...(filters.startDate ? { $gte: dayjs(filters.startDate).startOf('day').toDate() } : {}),
-      ...(filters.endDate ? { $lte: dayjs(filters.endDate).endOf('day').toDate() } : {})
-    };
-  }
-
-  if (filters.category) {
-    query.category = filters.category;
-  }
-
-  if (filters.currency) {
-    query.currency = filters.currency;
-  }
-
-  if (filters.type) {
-    query.type = filters.type;
-  }
-
-  if (filters.search) {
-    query.$or = [
-      { description: { $regex: filters.search, $options: 'i' } },
-      { recipientName: { $regex: filters.search, $options: 'i' } }
-    ];
-  }
-
-  const skip = (filters.page - 1) * filters.limit;
-  const [transactions, total] = await Promise.all([
-    Transaction.find(query)
-      .sort({ date: -1 })
-      .skip(skip)
-      .limit(filters.limit)
-      .lean(),
-    Transaction.countDocuments(query)
-  ]);
+  const { data, total } = await listTransactionsRepository(req.user.id, {
+    page: filters.page,
+    limit: filters.limit,
+    startDate,
+    endDate,
+    category: filters.category,
+    currency: filters.currency,
+    type: filters.type,
+    search: filters.search
+  });
 
   res.json({
-    data: transactions,
+    data,
     pagination: {
       page: filters.page,
       limit: filters.limit,
@@ -94,7 +77,7 @@ export const getTransactionById = async (req: AuthenticatedRequest, res: Respons
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
-  const transaction = await Transaction.findOne({ _id: req.params.id, userId: req.user.id });
+  const transaction = await getTransactionByIdRepository(req.user.id, req.params.id);
   if (!transaction) {
     return res.status(404).json({ message: 'Transaction not found' });
   }
@@ -108,26 +91,39 @@ export const updateTransaction = async (req: AuthenticatedRequest, res: Response
   }
   const payload = updateSchema.parse(req.body);
 
-  const transaction = await Transaction.findOne({ _id: req.params.id, userId: req.user.id });
+  const transaction = await getTransactionByIdRepository(req.user.id, req.params.id);
   if (!transaction) {
     return res.status(404).json({ message: 'Transaction not found' });
   }
 
+  const updates: Partial<Pick<TransactionRecord, 'category' | 'categoryConfidence' | 'notes'>> = {};
+  let shouldPersist = false;
+
   if (payload.category && payload.category !== transaction.category) {
-    transaction.category = payload.category;
-    transaction.categoryConfidence = 1;
+    updates.category = payload.category;
+    updates.categoryConfidence = 1;
+    shouldPersist = true;
     if (transaction.description) {
-      await recordCategoryOverride(transaction.userId, transaction.description, payload.category);
+      await recordCategoryOverride(req.user.id, transaction.description, payload.category);
     }
-    await upsertJournalEntriesForTransaction(transaction);
   }
 
-  if (payload.notes !== undefined) {
-    transaction.notes = payload.notes;
+  if (payload.notes !== undefined && payload.notes !== transaction.notes) {
+    updates.notes = payload.notes;
+    shouldPersist = true;
   }
 
-  await transaction.save();
-  res.json(transaction);
+  if (!shouldPersist) {
+    return res.json(transaction);
+  }
+
+  const updated = await updateTransactionById(req.user.id, transaction.id, updates);
+  if (!updated) {
+    return res.status(404).json({ message: 'Transaction not found' });
+  }
+
+  await upsertJournalEntriesForTransaction(updated);
+  res.json(updated);
 };
 
 export const syncTransactions = async (req: AuthenticatedRequest, res: Response) => {
@@ -136,7 +132,7 @@ export const syncTransactions = async (req: AuthenticatedRequest, res: Response)
   }
   const payload = syncSchema.parse(req.body ?? {});
 
-  const result = await wiseService.syncUserData(new Types.ObjectId(req.user.id), {
+  const result = await wiseService.syncUserData(req.user.id, {
     startDate: payload.startDate ? new Date(payload.startDate) : undefined,
     endDate: payload.endDate ? new Date(payload.endDate) : undefined,
     currency: payload.currency,
@@ -160,7 +156,7 @@ export const exportTransactions = async (req: AuthenticatedRequest, res: Respons
     return res.status(401).json({ message: 'Unauthorized' });
   }
   const { format } = exportSchema.parse(req.query);
-  const transactions = await Transaction.find({ userId: req.user.id }).lean();
+  const transactions = await listAllTransactionsForUser(req.user.id);
 
   if (format === 'csv') {
     const csv = buildCsv(

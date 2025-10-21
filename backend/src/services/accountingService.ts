@@ -1,10 +1,14 @@
 import PDFDocument from 'pdfkit';
-import { Types } from 'mongoose';
 import { createObjectCsvStringifier } from 'csv-writer';
 import dayjs from 'dayjs';
-import { JournalEntry, JournalEntryDocument } from '../models/JournalEntry';
-import { TransactionDocument, TransactionType } from '../models/Transaction';
 import { logger } from '../utils/logger';
+import { TransactionRecord, TransactionType } from '../repositories/transactionRepository';
+import {
+  deleteEntriesByTransactionId,
+  insertJournalEntries,
+  listJournalEntries,
+  JournalEntryRecord
+} from '../repositories/journalEntryRepository';
 
 export type StatementFormat = 'json' | 'csv' | 'pdf';
 
@@ -120,8 +124,13 @@ const getCashAccount = (source: 'wise' | 'stripe' | 'manual', currency: string):
 };
 
 const buildJournalEntries = (
-  transaction: TransactionDocument
-): Pick<JournalEntryDocument, 'debitAccount' | 'debitAmount' | 'creditAccount' | 'creditAmount'>[] => {
+  transaction: TransactionRecord
+): Array<{
+  debitAccount: string;
+  debitAmount: number;
+  creditAccount: string;
+  creditAmount: number;
+}> => {
   const amount = Math.abs(transaction.amount);
   const cashAccount = getCashAccount(transaction.source, transaction.currency);
   const categoryAccount = CATEGORY_TO_ACCOUNT[transaction.category] ?? transaction.category;
@@ -161,23 +170,23 @@ const buildJournalEntries = (
 };
 
 export const upsertJournalEntriesForTransaction = async (
-  transaction: TransactionDocument
+  transaction: TransactionRecord
 ): Promise<void> => {
-  await JournalEntry.deleteMany({ transactionId: transaction._id });
+  await deleteEntriesByTransactionId(transaction.id);
 
   const entries = buildJournalEntries(transaction);
-  await JournalEntry.insertMany(
+  await insertJournalEntries(
     entries.map((entry) => ({
       userId: transaction.userId,
       date: transaction.date,
       description: transaction.description,
-      transactionId: transaction._id,
+      transactionId: transaction.id,
       ...entry
     }))
   );
 };
 
-const aggregateAccountBalances = (entries: JournalEntryDocument[]) => {
+const aggregateAccountBalances = (entries: JournalEntryRecord[]) => {
   const balances = new Map<string, number>();
 
   for (const entry of entries) {
@@ -203,15 +212,12 @@ const summarizeGroup = (balances: Map<string, number>, group: AccountGroupKey): 
 };
 
 export const generateBalanceSheet = async (
-  userId: Types.ObjectId,
+  userId: string,
   range: StatementDateRange
 ): Promise<BalanceSheet> => {
-  const entries = await JournalEntry.find({
-    userId,
-    date: { $lte: range.endDate }
-  }).lean();
+  const entries = await listJournalEntries(userId, { endDate: range.endDate });
 
-  const balances = aggregateAccountBalances(entries as unknown as JournalEntryDocument[]);
+  const balances = aggregateAccountBalances(entries);
 
   const assets = summarizeGroup(balances, 'assets');
   const liabilities = summarizeGroup(balances, 'liabilities');
@@ -227,15 +233,15 @@ export const generateBalanceSheet = async (
 };
 
 export const generateProfitAndLoss = async (
-  userId: Types.ObjectId,
+  userId: string,
   range: StatementDateRange
 ): Promise<ProfitAndLossStatement> => {
-  const entries = await JournalEntry.find({
-    userId,
-    date: { $gte: range.startDate, $lte: range.endDate }
-  }).lean();
+  const entries = await listJournalEntries(userId, {
+    startDate: range.startDate,
+    endDate: range.endDate
+  });
 
-  const balances = aggregateAccountBalances(entries as unknown as JournalEntryDocument[]);
+  const balances = aggregateAccountBalances(entries);
   const income = summarizeGroup(balances, 'income');
   const expenses = summarizeGroup(balances, 'expenses');
   const incomeTotal = income.reduce((sum, item) => sum + item.amount, 0);
@@ -249,15 +255,15 @@ export const generateProfitAndLoss = async (
 };
 
 export const generateCashFlow = async (
-  userId: Types.ObjectId,
+  userId: string,
   range: StatementDateRange
 ): Promise<CashFlowStatement> => {
-  const entries = await JournalEntry.find({
-    userId,
-    date: { $gte: range.startDate, $lte: range.endDate }
-  }).lean();
+  const entries = await listJournalEntries(userId, {
+    startDate: range.startDate,
+    endDate: range.endDate
+  });
 
-  const balances = aggregateAccountBalances(entries as unknown as JournalEntryDocument[]);
+  const balances = aggregateAccountBalances(entries);
 
   let operating = 0;
   let investing = 0;
@@ -411,7 +417,7 @@ export const exportStatement = (
   }
 };
 
-export const deriveTransactionType = (transaction: TransactionDocument): TransactionType => {
+export const deriveTransactionType = (transaction: TransactionRecord): TransactionType => {
   if (transaction.type) {
     return transaction.type;
   }

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import './styles/index.css';
 import iconUrl from './public/icon.svg?url';
+import DevAuthGate from './components/dev/DevAuthGate';
 
 const ensureFavicon = () => {
   const existing = document.querySelector<HTMLLinkElement>("link[rel='icon']") || document.createElement('link');
@@ -24,7 +25,9 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        <DevAuthGate>
+          <App />
+        </DevAuthGate>
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>

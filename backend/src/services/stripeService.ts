@@ -1,20 +1,28 @@
 import Stripe from 'stripe';
-import { Types } from 'mongoose';
 import dayjs from 'dayjs';
 import { config } from '../config/env';
-import { Transaction } from '../models/Transaction';
-import { User } from '../models/User';
 import { upsertJournalEntriesForTransaction } from './accountingService';
 import { logger } from '../utils/logger';
+import {
+  getUserById,
+  getStripeKey as decryptStripeKey,
+  UserWithSecrets
+} from '../repositories/userRepository';
+import {
+  listTransactionsBySource,
+  upsertTransactionByExternalId
+} from '../repositories/transactionRepository';
+
+const STRIPE_API_VERSION: Stripe.LatestApiVersion = '2025-09-30.clover';
 
 const stripeClients = new Map<string, Stripe>();
 
-const getStripeKeyForUser = async (userId: Types.ObjectId): Promise<string> => {
-  const user = await User.findById(userId).select('+settings.stripeKey');
+const getStripeKeyForUser = async (userId: string): Promise<string> => {
+  const user = await getUserById(userId, { includeSecrets: true });
   if (!user) {
     throw new Error('User not found');
   }
-  const userKey = user.getStripeKey();
+  const userKey = decryptStripeKey(user as UserWithSecrets);
   if (userKey) {
     return userKey;
   }
@@ -24,12 +32,12 @@ const getStripeKeyForUser = async (userId: Types.ObjectId): Promise<string> => {
   return config.STRIPE_SECRET_KEY;
 };
 
-const getStripeClient = async (userId: Types.ObjectId): Promise<Stripe> => {
+const getStripeClient = async (userId: string): Promise<Stripe> => {
   const key = await getStripeKeyForUser(userId);
   if (stripeClients.has(key)) {
     return stripeClients.get(key)!;
   }
-  const client = new Stripe(key, { apiVersion: '2024-06-20' });
+  const client = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
   stripeClients.set(key, client);
   return client;
 };
@@ -44,7 +52,7 @@ export interface CheckoutSessionInput {
 }
 
 export const createCheckoutSession = async (
-  userId: Types.ObjectId,
+  userId: string,
   payload: CheckoutSessionInput
 ): Promise<Stripe.Checkout.Session> => {
   const stripe = await getStripeClient(userId);
@@ -54,7 +62,7 @@ export const createCheckoutSession = async (
     cancel_url: payload.cancelUrl,
     customer_email: payload.customerEmail,
     metadata: {
-      userId: userId.toString(),
+      userId,
       ...payload.metadata
     },
     line_items: [
@@ -81,12 +89,12 @@ export const verifyStripeWebhook = (
   rawBody: Buffer,
   { signature, secret }: StripeWebhookContext
 ): Stripe.Event => {
-  const stripe = new Stripe(config.STRIPE_SECRET_KEY ?? '', { apiVersion: '2024-06-20' });
+  const stripe = new Stripe(config.STRIPE_SECRET_KEY ?? '', { apiVersion: STRIPE_API_VERSION });
   return stripe.webhooks.constructEvent(rawBody, signature as string, secret);
 };
 
 const recordStripeTransaction = async (
-  userId: Types.ObjectId,
+  userId: string,
   payload: {
     stripeId: string;
     description: string;
@@ -96,23 +104,21 @@ const recordStripeTransaction = async (
     customerEmail?: string;
   }
 ) => {
-  const transaction = await Transaction.findOneAndUpdate(
-    { userId, externalId: payload.stripeId },
-    {
-      userId,
-      externalId: payload.stripeId,
-      date: payload.occurredAt,
-      description: payload.description,
-      amount: payload.amount,
-      currency: payload.currency,
-      type: 'income',
-      category: 'Client Revenue',
-      categoryConfidence: 1,
-      source: 'stripe',
-      recipientName: payload.customerEmail
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+  const transaction = await upsertTransactionByExternalId({
+    user_id: userId,
+    external_id: payload.stripeId,
+    wise_id: null,
+    date: payload.occurredAt.toISOString(),
+    description: payload.description,
+    amount: payload.amount,
+    currency: payload.currency,
+    type: 'income',
+    category: 'Client Revenue',
+    category_confidence: 1,
+    source: 'stripe',
+    notes: null,
+    recipient_name: payload.customerEmail ?? null
+  });
 
   await upsertJournalEntriesForTransaction(transaction);
 };
@@ -132,7 +138,7 @@ export const handleStripeWebhook = async (
         return { acknowledged: false };
       }
 
-      await recordStripeTransaction(new Types.ObjectId(userId), {
+      await recordStripeTransaction(userId, {
         stripeId: session.id,
         description: session.metadata?.description ?? 'Stripe Checkout Payment',
         amount: (session.amount_total ?? 0) / 100,
@@ -148,7 +154,7 @@ export const handleStripeWebhook = async (
       if (!userId || !intent.amount_received || !intent.currency) {
         return { acknowledged: false };
       }
-      await recordStripeTransaction(new Types.ObjectId(userId), {
+      await recordStripeTransaction(userId, {
         stripeId: intent.id,
         description: intent.metadata?.description ?? intent.description ?? 'Stripe Payment Intent',
         amount: intent.amount_received / 100,
@@ -164,6 +170,6 @@ export const handleStripeWebhook = async (
   return { acknowledged: true };
 };
 
-export const listStripePayments = async (userId: Types.ObjectId) => {
-  return Transaction.find({ userId, source: 'stripe' }).sort({ date: -1 }).lean();
+export const listStripePayments = async (userId: string) => {
+  return listTransactionsBySource(userId, 'stripe');
 };

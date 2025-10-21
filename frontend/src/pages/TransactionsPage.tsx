@@ -74,8 +74,8 @@ const TransactionsPage = () => {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl text-offwhite">Transactions</h2>
-          <p className="text-sm text-light-peach">
+          <h2 className="font-heading text-2xl font-semibold text-slate-900">Transactions</h2>
+          <p className="text-sm text-slate-500">
             Combined view of Wise and Stripe data. Override categories, sync on demand, or upload historical
             statements to auto-generate entries.
           </p>
@@ -113,7 +113,7 @@ const TransactionsPage = () => {
         </div>
       </header>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm ring-1 ring-slate-900/5">
         <div className="grid gap-3 md:grid-cols-3">
           <input
             type="text"
@@ -156,7 +156,7 @@ const TransactionsPage = () => {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white/80 shadow-sm ring-1 ring-slate-900/5">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>

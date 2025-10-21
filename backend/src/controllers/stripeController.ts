@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { Types } from 'mongoose';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../middleware/auth';
 import {
@@ -15,7 +14,7 @@ const checkoutSchema = z.object({
   currency: z.string().length(3),
   successUrl: z.string().url(),
   cancelUrl: z.string().url(),
-  metadata: z.record(z.string()).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
   customerEmail: z.string().email().optional()
 });
 
@@ -25,7 +24,7 @@ export const createPaymentSession = async (req: AuthenticatedRequest, res: Respo
   }
 
   const payload = checkoutSchema.parse(req.body) as CheckoutSessionInput;
-  const session = await createCheckoutSession(new Types.ObjectId(req.user.id), payload);
+  const session = await createCheckoutSession(req.user.id, payload);
   res.status(201).json(session);
 };
 
@@ -49,6 +48,6 @@ export const listPayments = async (req: AuthenticatedRequest, res: Response) => 
   if (!req.user) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
-  const payments = await listStripePayments(new Types.ObjectId(req.user.id));
+  const payments = await listStripePayments(req.user.id);
   res.json(payments);
 };

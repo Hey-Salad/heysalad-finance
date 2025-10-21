@@ -31,7 +31,6 @@
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.19.2",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
@@ -40,7 +39,8 @@
     "stripe": "^19.1.0",
     "winston": "^3.18.3",
     "xlsx": "^0.18.5",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@supabase/supabase-js": "^2.48.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

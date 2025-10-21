@@ -1,9 +1,8 @@
 import { Response } from 'express';
-import { Types } from 'mongoose';
 import dayjs from 'dayjs';
+import isBetween from 'dayjs/plugin/isBetween';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { Transaction } from '../models/Transaction';
 import {
   BurnRateMetrics,
   ScenarioInput,
@@ -12,6 +11,9 @@ import {
   projectRunwayWithScenario,
   saveScenario
 } from '../services/burnRateService';
+import { listTransactionsBetween } from '../repositories/transactionRepository';
+
+dayjs.extend(isBetween);
 
 const scenarioSchema = z.object({
   name: z.string().min(2),
@@ -24,7 +26,7 @@ const ensureUser = (req: AuthenticatedRequest, res: Response) => {
     res.status(401).json({ message: 'Unauthorized' });
     return null;
   }
-  return new Types.ObjectId(req.user.id);
+  return req.user.id;
 };
 
 const formatMetrics = (metrics: BurnRateMetrics) => ({
@@ -52,9 +54,7 @@ export const getBurnRateHistory = async (req: AuthenticatedRequest, res: Respons
   }
 
   const start = dayjs().subtract(6, 'month');
-  const transactions = await Transaction.find({ userId, date: { $gte: start.toDate() } })
-    .sort({ date: 1 })
-    .lean();
+  const transactions = await listTransactionsBetween(userId, start.toDate(), new Date());
 
   const history: Array<{ month: string; income: number; expenses: number; netBurn: number }> = [];
 

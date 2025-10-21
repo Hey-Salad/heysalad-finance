@@ -1,16 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Grandstander:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  @apply bg-offwhite text-slate-800 font-sans antialiased;
+  @apply bg-white text-slate-800 font-sans antialiased;
 }
 
 h1,
 h2,
 h3,
 h4 {
-  @apply font-display tracking-tight;
+  @apply font-heading font-semibold tracking-tight;
 }

@@ -39,13 +39,13 @@ const SettingsPage = () => {
   return (
     <div className="space-y-6">
       <header>
-        <h2 className="font-display text-2xl text-slate-800">Settings</h2>
+        <h2 className="font-heading text-2xl font-semibold text-slate-900">Settings</h2>
         <p className="text-sm text-slate-500">Manage API credentials, defaults, and sync preferences.</p>
       </header>
 
       <section className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-600">Wise Integration</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+          <h3 className="text-sm font-semibold text-slate-700">Wise Integration</h3>
           <p className="mt-2 text-xs text-slate-500">
             Securely stored with AES-256 encryption. Required for automatic sync.
           </p>
@@ -61,8 +61,8 @@ const SettingsPage = () => {
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-600">Stripe Integration</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+          <h3 className="text-sm font-semibold text-slate-700">Stripe Integration</h3>
           <input
             type="password"
             placeholder="Stripe secret key"
@@ -76,8 +76,8 @@ const SettingsPage = () => {
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-600">Preferences</h3>
+      <section className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
+        <h3 className="text-sm font-semibold text-slate-700">Preferences</h3>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <label className="text-xs uppercase tracking-wide text-slate-400">Default currency</label>

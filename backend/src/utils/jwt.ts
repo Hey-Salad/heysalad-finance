@@ -1,8 +1,18 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
-import { RefreshToken } from '../models/RefreshToken';
-import { UserDocument } from '../models/User';
+import {
+  createRefreshToken,
+  findActiveRefreshTokenByHash,
+  markRefreshTokenRevoked,
+  revokeRefreshTokensForUser,
+  RefreshTokenRecord
+} from '../repositories/refreshTokenRepository';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+}
 
 interface TokenPair {
   accessToken: string;
@@ -11,22 +21,22 @@ interface TokenPair {
 }
 
 const generateRawRefreshToken = () => crypto.randomBytes(48).toString('hex');
+const hashToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
 
-export const generateAccessToken = (user: UserDocument): string => {
-  return jwt.sign({ email: user.email }, config.JWT_SECRET, {
-    subject: user._id.toString(),
-    expiresIn: `${config.TOKEN_EXPIRY_MINUTES}m`
+export const generateAccessToken = (user: AuthUser): string =>
+  jwt.sign({ email: user.email }, config.JWT_SECRET, {
+    subject: user.id,
+    expiresIn: Math.max(1, Number(config.TOKEN_EXPIRY_MINUTES) || 60) * 60
   });
-};
 
-export const generateRefreshToken = async (user: UserDocument): Promise<TokenPair> => {
+export const generateRefreshToken = async (user: AuthUser): Promise<TokenPair> => {
   const refreshToken = generateRawRefreshToken();
   const expires = new Date();
   expires.setDate(expires.getDate() + Number(config.REFRESH_TOKEN_EXPIRY_DAYS));
 
-  await RefreshToken.create({
-    userId: user._id,
-    tokenHash: RefreshToken.hashToken(refreshToken),
+  await createRefreshToken({
+    userId: user.id,
+    tokenHash: hashToken(refreshToken),
     expiresAt: expires
   });
 
@@ -38,14 +48,16 @@ export const generateRefreshToken = async (user: UserDocument): Promise<TokenPai
 };
 
 export const verifyRefreshToken = async (token: string) => {
-  const hashed = RefreshToken.hashToken(token);
-  return RefreshToken.findOne({
-    tokenHash: hashed,
-    revokedAt: { $exists: false },
-    expiresAt: { $gt: new Date() }
-  });
+  const hashed = hashToken(token);
+  return findActiveRefreshTokenByHash(hashed);
 };
 
 export const revokeRefreshTokens = async (userId: string): Promise<void> => {
-  await RefreshToken.updateMany({ userId, revokedAt: { $exists: false } }, { revokedAt: new Date() });
+  await revokeRefreshTokensForUser(userId);
 };
+
+export const revokeRefreshTokenById = async (token: RefreshTokenRecord): Promise<void> => {
+  await markRefreshTokenRevoked(token.id);
+};
+
+export const hashRefreshToken = hashToken;

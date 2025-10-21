@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { importTransactionsFromFile } from '../services/importService';
 
@@ -13,7 +12,7 @@ export const importTransactions = async (req: AuthenticatedRequest, res: Respons
   }
 
   try {
-    const summary = await importTransactionsFromFile(new Types.ObjectId(req.user.id), req.file);
+    const summary = await importTransactionsFromFile(req.user.id, req.file);
     return res.status(201).json({
       message: 'Import completed',
       ...summary

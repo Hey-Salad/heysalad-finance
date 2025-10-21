@@ -1,20 +1,18 @@
 import cron from 'node-cron';
 import { config } from '../config/env';
-import { User } from '../models/User';
 import { wiseService } from '../services/wiseService';
 import { logger } from '../utils/logger';
+import { listUsersWithWiseToken } from '../repositories/userRepository';
 
 const runSync = async () => {
-  const users = await User.find({ 'settings.wiseToken': { $exists: true, $ne: null } })
-    .select('+settings.wiseToken')
-    .lean();
+  const users = await listUsersWithWiseToken();
 
   for (const user of users) {
     try {
-      await wiseService.syncUserData(user._id, { useSandbox: !config.isProduction });
-      logger.info(`Wise data synced for user ${user._id}`);
+      await wiseService.syncUserData(user.id, { useSandbox: !config.isProduction });
+      logger.info(`Wise data synced for user ${user.id}`);
     } catch (error) {
-      logger.error(`Failed to sync Wise data for user ${user._id}`, error as Error);
+      logger.error(`Failed to sync Wise data for user ${user.id}`, error as Error);
     }
   }
 };

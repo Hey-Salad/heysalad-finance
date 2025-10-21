@@ -93,7 +93,7 @@ const FinancialStatementsPage = () => {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl text-slate-800">Financial Statements</h2>
+          <h2 className="font-heading text-2xl font-semibold text-slate-900">Financial Statements</h2>
           <p className="text-sm text-slate-500">
             Generate balance sheet, P&amp;L, and cash flow exports with double-entry accuracy.
           </p>
@@ -139,11 +139,11 @@ const FinancialStatementsPage = () => {
         </div>
       </header>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm ring-1 ring-slate-900/5">
         {statement === 'balance-sheet' && (
           <div className="grid gap-6 md:grid-cols-3">
             <div>
-              <h3 className="text-sm font-semibold text-slate-600">Assets</h3>
+              <h3 className="text-sm font-semibold text-slate-700">Assets</h3>
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
                 {balanceSheet.assets.map((item) => (
                   <li key={item.account} className="flex justify-between">
@@ -154,7 +154,7 @@ const FinancialStatementsPage = () => {
               </ul>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-slate-600">Liabilities</h3>
+              <h3 className="text-sm font-semibold text-slate-700">Liabilities</h3>
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
                 {balanceSheet.liabilities.map((item) => (
                   <li key={item.account} className="flex justify-between">
@@ -165,7 +165,7 @@ const FinancialStatementsPage = () => {
               </ul>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-slate-600">Equity</h3>
+              <h3 className="text-sm font-semibold text-slate-700">Equity</h3>
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
                 {balanceSheet.equity.map((item) => (
                   <li key={item.account} className="flex justify-between">
@@ -186,7 +186,7 @@ const FinancialStatementsPage = () => {
         {statement === 'p-and-l' && (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
-              <h3 className="text-sm font-semibold text-slate-600">Income</h3>
+              <h3 className="text-sm font-semibold text-slate-700">Income</h3>
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
                 {profitAndLoss.income.map((item) => (
                   <li key={item.account} className="flex justify-between">
@@ -197,7 +197,7 @@ const FinancialStatementsPage = () => {
               </ul>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-slate-600">Expenses</h3>
+              <h3 className="text-sm font-semibold text-slate-700">Expenses</h3>
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
                 {profitAndLoss.expenses.map((item) => (
                   <li key={item.account} className="flex justify-between">

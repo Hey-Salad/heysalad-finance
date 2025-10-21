@@ -1,7 +1,5 @@
-import { Types } from 'mongoose';
-import { CategoryOverride } from '../models/CategoryOverride';
-import { TransactionDocument } from '../models/Transaction';
 import { logger } from '../utils/logger';
+import { findOverride, upsertOverride } from '../repositories/categoryOverrideRepository';
 
 export const TRANSACTION_CATEGORIES = [
   'Salaries',
@@ -61,13 +59,13 @@ export interface CategorizationResult {
 }
 
 export const categorizeTransaction = async (
-  userId: Types.ObjectId,
-  transaction: Pick<TransactionDocument, 'description' | 'recipientName' | 'amount' | 'currency'>
+  userId: string,
+  transaction: { description: string; recipientName?: string; amount: number; currency: string }
 ): Promise<CategorizationResult> => {
   const matcherSource = transaction.recipientName || transaction.description;
   const normalizedMatcher = normalizeMatcher(matcherSource);
 
-  const override = await CategoryOverride.findOne({ userId, matcher: normalizedMatcher }).lean();
+  const override = await findOverride(userId, normalizedMatcher);
   if (override) {
     return { category: override.category, confidence: 1, source: 'override' };
   }
@@ -76,13 +74,21 @@ export const categorizeTransaction = async (
   const hypothesisTemplate = 'This transaction is related to {label}.';
 
   try {
-    const result = await classifier(matcherSource, TRANSACTION_CATEGORIES, {
+    const rawResult = await classifier(matcherSource, TRANSACTION_CATEGORIES, {
       hypothesis_template: hypothesisTemplate
     });
 
-    const [topResult] = Array.isArray(result.labels) && Array.isArray(result.scores)
-      ? result.labels.map((label, index) => ({ label, score: result.scores[index] }))
-      : result;
+    const normalizedResults: Array<{ label: string; score: number | undefined }> =
+      Array.isArray(rawResult)
+        ? rawResult
+        : Array.isArray(rawResult.labels) && Array.isArray(rawResult.scores)
+          ? rawResult.labels.map((label: string, index: number) => ({
+              label,
+              score: rawResult.scores[index]
+            }))
+          : [];
+
+    const [topResult] = normalizedResults;
 
     if (!topResult) {
       return { category: 'Other Expenses', confidence: 0, source: 'ai' };
@@ -104,14 +110,10 @@ export const categorizeTransaction = async (
 };
 
 export const recordCategoryOverride = async (
-  userId: Types.ObjectId,
+  userId: string,
   matcher: string,
   category: string
 ): Promise<void> => {
   const normalizedMatcher = normalizeMatcher(matcher);
-  await CategoryOverride.findOneAndUpdate(
-    { userId, matcher: normalizedMatcher },
-    { category },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+  await upsertOverride(userId, normalizedMatcher, category);
 };
