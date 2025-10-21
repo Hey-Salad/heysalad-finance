@@ -1,0 +1,21 @@
+import { ReactNode } from 'react';
+
+interface SummaryCardProps {
+  title: string;
+  value: string | number;
+  subtext?: string;
+  icon?: ReactNode;
+}
+
+const SummaryCard = ({ title, value, subtext, icon }: SummaryCardProps) => (
+  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="flex items-center justify-between">
+      <h3 className="text-sm font-medium text-slate-500">{title}</h3>
+      {icon}
+    </div>
+    <div className="mt-3 text-2xl font-semibold text-slate-800">{value}</div>
+    {subtext && <p className="mt-2 text-xs text-slate-500">{subtext}</p>}
+  </div>
+);
+
+export default SummaryCard;
