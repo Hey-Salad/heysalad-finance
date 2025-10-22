@@ -1,12 +1,8 @@
-import { ReactNode, useState } from 'react';
+import { useState } from 'react';
+import { Outlet } from 'react-router-dom';
 import Sidebar from '../components/navigation/Sidebar';
 import TopBar from '../components/navigation/TopBar';
-
-interface MainLayoutProps {
-  children: ReactNode;
-}
-
-const MainLayout = ({ children }: MainLayoutProps) => {
+const MainLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -27,7 +23,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       <div className="flex flex-1 flex-col">
         <TopBar onMenuToggle={() => setMobileOpen((open) => !open)} />
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 lg:px-12">
-          {children}
+          <Outlet />
         </main>
         <footer className="mt-auto flex items-center justify-between px-4 py-4 text-xs text-slate-400 sm:px-8 lg:px-12">
           <span>Finance Console</span>

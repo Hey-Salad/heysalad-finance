@@ -6,12 +6,6 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { setWiseToken } from '../repositories/userRepository';
 import { logger } from '../utils/logger';
 
-const getOauthBaseUrl = () =>
-  config.isProduction ? 'https://wise.com' : 'https://sandbox.transferwise.tech';
-
-const getAuthorizeUrl = () => `${getOauthBaseUrl()}/oauth/authorize`;
-const getTokenUrl = () => `${getOauthBaseUrl()}/oauth/token`;
-
 const createStateToken = (userId: string): string =>
   jwt.sign({ sub: userId }, config.JWT_SECRET, { expiresIn: 600 });
 
@@ -39,7 +33,11 @@ export const getAuthorizationUrl = (req: AuthenticatedRequest, res: Response) =>
     params.set('scope', config.WISE_OAUTH_SCOPE);
   }
 
-  const url = `${getAuthorizeUrl()}?${params.toString()}`;
+  if (config.wiseOauthAudience) {
+    params.set('audience', config.wiseOauthAudience);
+  }
+
+  const url = `${config.wiseOauthAuthorizeUrl}?${params.toString()}`;
   res.json({ url });
 };
 
@@ -86,12 +84,21 @@ export const handleCallback = async (req: Request, res: Response) => {
       client_secret: config.WISE_OAUTH_CLIENT_SECRET
     });
 
-    const tokenResponse = await axios.post(getTokenUrl(), params.toString(), {
+    if (config.wiseOauthAudience) {
+      params.set('audience', config.wiseOauthAudience);
+    }
+
+    const tokenResponse = await axios.post(config.wiseOauthTokenUrl, params.toString(), {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
 
-    const { access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn } =
-      tokenResponse.data;
+    const {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_in: expiresIn,
+      token_type: tokenType,
+      scope
+    } = tokenResponse.data;
 
     if (!accessToken) {
       throw new Error('Access token missing from Wise response');
@@ -104,7 +111,9 @@ export const handleCallback = async (req: Request, res: Response) => {
       JSON.stringify({
         accessToken,
         refreshToken,
-        expiresAt
+        expiresAt,
+        tokenType,
+        scope
       })
     );
 

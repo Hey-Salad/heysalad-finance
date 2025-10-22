@@ -20,7 +20,8 @@ Monorepo for the HeySalad® Finance platform. It contains the production API and
    npm install --prefix backend
    npm install --prefix frontend
    ```
-2. Configure environment variables (see the dedicated README in each package for the full list).
+2. Configure environment variables (see the dedicated README in each package for the full list).  
+   - Backend supports Wise, Monzo, and Google OAuth; set the corresponding `WISE_*`, `MONZO_*`, and `GOOGLE_*` variables before starting the server.
 3. Run the API:
    ```bash
    npm run dev --prefix backend

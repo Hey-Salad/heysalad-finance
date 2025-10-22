@@ -8,6 +8,7 @@ import * as settingsController from '../controllers/settingsController';
 import * as balanceController from '../controllers/balanceController';
 import * as dataImportController from '../controllers/dataImportController';
 import * as wiseOauthController from '../controllers/wiseOauthController';
+import * as oauthController from '../controllers/oauthController';
 import { authenticate } from '../middleware/auth';
 import { upload } from '../middleware/upload';
 import { config } from '../config/env';
@@ -21,6 +22,8 @@ router.post('/auth/logout', authController.logout);
 if (config.allowDevAutoLogin) {
   router.post('/auth/dev-login', authController.devLogin);
 }
+router.get('/auth/oauth/:provider/url', oauthController.getAuthorizationUrl);
+router.get('/auth/oauth/:provider/callback', oauthController.handleCallback);
 
 router.get('/transactions', authenticate, transactionController.listTransactions);
 router.get('/transactions/export', authenticate, transactionController.exportTransactions);

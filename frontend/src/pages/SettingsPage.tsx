@@ -3,6 +3,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import client from '../api/client';
 import Loader from '../components/Loader';
+import wiseLogoUrl from '../public/wise-logo.svg?url';
+
+type SettingsResponse = {
+  defaultCurrency: string;
+  refreshInterval: number;
+  hasWiseToken: boolean;
+  hasStripeKey: boolean;
+  wiseEnvironment: 'sandbox' | 'production';
+};
 
 const SettingsPage = () => {
   const queryClient = useQueryClient();
@@ -11,7 +20,7 @@ const SettingsPage = () => {
     queryKey: ['settings'],
     queryFn: async () => {
       const response = await client.get('/settings');
-      return response.data;
+      return response.data as SettingsResponse;
     }
   });
 
@@ -24,12 +33,33 @@ const SettingsPage = () => {
   const [banner, setBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
-    const status = searchParams.get('wise');
+    if (!data) {
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      defaultCurrency: data.defaultCurrency ?? 'EUR',
+      refreshInterval: data.refreshInterval ?? 30
+    }));
+  }, [data]);
+
+  useEffect(() => {
+    const provider = searchParams.get('provider');
+    const statusParam = searchParams.get('status');
+    const legacyStatus = searchParams.get('wise');
     const reason = searchParams.get('reason');
+
+    const status = statusParam ?? legacyStatus;
+
     if (!status) {
       return;
     }
-    if (status === 'linked') {
+
+    if (provider && provider !== 'wise' && !legacyStatus) {
+      return;
+    }
+
+    if (status === 'linked' || status === 'success') {
       setBanner({ type: 'success', message: 'Wise account linked successfully.' });
     } else {
       setBanner({
@@ -37,8 +67,11 @@ const SettingsPage = () => {
         message: `Wise linking failed${reason ? `: ${reason}` : '.'}`
       });
     }
+
     const next = new URLSearchParams(searchParams);
     next.delete('wise');
+    next.delete('provider');
+    next.delete('status');
     next.delete('reason');
     setSearchParams(next, { replace: true });
     queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -53,12 +86,25 @@ const SettingsPage = () => {
         refreshInterval: form.refreshInterval
       });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] })
+    onSuccess: () => {
+      setBanner({ type: 'success', message: 'Settings updated successfully.' });
+      setForm((prev) => ({
+        ...prev,
+        wiseToken: '',
+        stripeKey: ''
+      }));
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+    onError: () => {
+      setBanner({ type: 'error', message: 'Unable to update settings. Please try again.' });
+    }
   });
 
   const wiseOauthMutation = useMutation({
     mutationFn: async () => {
-      const response = await client.get('/wise/oauth/url');
+      const response = await client.get('/auth/oauth/wise/url', {
+        params: { mode: 'link', redirect: '/settings' }
+      });
       return response.data as { url: string };
     },
     onSuccess: (payload) => {
@@ -97,6 +143,12 @@ const SettingsPage = () => {
           <p className="mt-2 text-xs text-slate-500">
             Securely stored with AES-256 encryption. Required for automatic sync.
           </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Environment:{' '}
+            <span className="font-medium text-slate-600">
+              {data?.wiseEnvironment === 'production' ? 'Production' : 'Sandbox (test)'}
+            </span>
+          </p>
           <button
             type="button"
             className="mt-3 inline-flex items-center gap-2 rounded-md border border-primary bg-white px-3 py-2 text-sm font-medium text-primary hover:bg-primary hover:text-white"
@@ -109,7 +161,14 @@ const SettingsPage = () => {
                 Redirecting…
               </>
             ) : (
-              'Connect with Wise'
+              <>
+                <img
+                  src={wiseLogoUrl}
+                  alt="Wise"
+                  className="h-4 w-4 rounded-sm bg-primary/5 object-contain"
+                />
+                Connect with Wise
+              </>
             )}
           </button>
           <input

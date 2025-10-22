@@ -12,30 +12,24 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AgentsPage = lazy(() => import('./pages/AgentsPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const OauthCallbackPage = lazy(() => import('./pages/OauthCallbackPage'));
 
 const App = () => {
   return (
     <Suspense fallback={<Loader />}>
       <Routes>
+        <Route path="/oauth/callback" element={<OauthCallbackPage />} />
+        <Route element={<MainLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/transactions" element={<TransactionsPage />} />
+          <Route path="/financial-statements" element={<FinancialStatementsPage />} />
+          <Route path="/runway-calculator" element={<RunwayCalculatorPage />} />
+          <Route path="/financial-modeling" element={<FinancialModelingPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/agents" element={<AgentsPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+        </Route>
         <Route path="/" element={<LandingPage />} />
-        <Route
-          element={
-            <MainLayout>
-              <Suspense fallback={<Loader />}>
-                <Routes>
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/transactions" element={<TransactionsPage />} />
-                  <Route path="/financial-statements" element={<FinancialStatementsPage />} />
-                  <Route path="/runway-calculator" element={<RunwayCalculatorPage />} />
-                  <Route path="/financial-modeling" element={<FinancialModelingPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/agents" element={<AgentsPage />} />
-                  <Route path="/admin" element={<AdminPage />} />
-                </Routes>
-              </Suspense>
-            </MainLayout>
-          }
-        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

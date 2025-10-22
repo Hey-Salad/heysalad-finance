@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { config } from '../config/env';
 import {
   getUserById,
   setWiseToken,
@@ -39,7 +40,8 @@ export const getSettings = async (req: AuthenticatedRequest, res: Response) => {
     defaultCurrency: user.defaultCurrency,
     refreshInterval: user.refreshInterval,
     hasWiseToken: user.hasWiseToken,
-    hasStripeKey: user.hasStripeKey
+    hasStripeKey: user.hasStripeKey,
+    wiseEnvironment: config.wiseEnvironment
   });
 };
 
@@ -80,6 +82,7 @@ export const updateSettings = async (req: AuthenticatedRequest, res: Response) =
     defaultCurrency: user.defaultCurrency,
     refreshInterval: user.refreshInterval,
     hasWiseToken: user.hasWiseToken,
-    hasStripeKey: user.hasStripeKey
+    hasStripeKey: user.hasStripeKey,
+    wiseEnvironment: config.wiseEnvironment
   });
 };

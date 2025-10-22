@@ -79,11 +79,9 @@ export interface SyncResult {
 }
 
 const MAX_INTERVAL_DAYS = 469;
-const getOauthBaseUrl = () =>
-  config.isProduction ? 'https://wise.com' : 'https://sandbox.transferwise.tech';
 
 const getBaseUrl = (useSandbox?: boolean): string => {
-  const sandbox = useSandbox || config.isDevelopment;
+  const sandbox = useSandbox ?? config.wiseEnvironment === 'sandbox';
   if (config.useWiseMtls) {
     return sandbox ? config.WISE_SANDBOX_MTLS_URL : config.WISE_API_MTLS_URL;
   }
@@ -201,7 +199,11 @@ export class WiseService {
       redirect_uri: config.WISE_OAUTH_REDIRECT_URI
     });
 
-    const response = await axios.post(`${getOauthBaseUrl()}/oauth/token`, params.toString(), {
+    if (config.wiseOauthAudience) {
+      params.set('audience', config.wiseOauthAudience);
+    }
+
+    const response = await axios.post(config.wiseOauthTokenUrl, params.toString(), {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
 

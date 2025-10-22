@@ -14,10 +14,11 @@ export interface AuthUser {
   email: string;
 }
 
-interface TokenPair {
+export interface TokenPair {
   accessToken: string;
   refreshToken: string;
   refreshTokenExpiresAt: Date;
+  expiresInSeconds: number;
 }
 
 const generateRawRefreshToken = () => crypto.randomBytes(48).toString('hex');
@@ -43,7 +44,8 @@ export const generateRefreshToken = async (user: AuthUser): Promise<TokenPair> =
   return {
     accessToken: generateAccessToken(user),
     refreshToken,
-    refreshTokenExpiresAt: expires
+    refreshTokenExpiresAt: expires,
+    expiresInSeconds: Math.max(1, Number(config.TOKEN_EXPIRY_MINUTES) || 60) * 60
   };
 };
 

@@ -24,7 +24,7 @@ const DevAuthGate = ({ children }: DevAuthGateProps) => {
   }, []);
 
   const [hasToken, setHasToken] = useState(Boolean(existingToken));
-  const [isPromptOpen, setIsPromptOpen] = useState(isDev && !existingToken);
+  const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [input, setInput] = useState('');
 
   if (!isDev) {

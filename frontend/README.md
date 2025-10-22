@@ -38,3 +38,4 @@ The dashboard expects the backend to expose Supabase data through its REST endpo
 - Upload CSV, Excel, or PDF statements from the Transactions page to auto-generate data.
 - HeySalad® brand styling with Grandstander (display) and Figtree (body) fonts.
 - Responsive sidebar/top-bar layout with accessible navigation states.
+- Multi-provider OAuth sign-in from the landing page (Wise, Monzo, Google) with a shared callback handler at `/oauth/callback`.
